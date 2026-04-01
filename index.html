@@ -188,25 +188,12 @@ const URGENCY = {
 };
 
 const PROMPTS = {
-  all:`Search the web right now for the latest breaking news about the Israel-Iran conflict, Iranian missile attacks, Israeli airstrikes on Iran, Hezbollah activity, Houthi attacks, Hamas, and any related Middle East military developments happening today April 2026.
-Return ONLY a valid JSON array of exactly 6 news items. Each item:
-{"title":"Hebrew headline max 10 words","summary":"Hebrew 2-3 sentence factual summary","category":"military|diplomatic|home|nuclear|intel","urgency":"high|medium|low","source":"source name","timeAgo":"לפני X שעות","location":"city/region"}
-Return ONLY the JSON array with no extra text, no markdown, no backticks.`,
-
-  military:`Search the web for today's latest military news: IDF operations against Iran, Israeli airstrikes, Iranian missile/drone attacks, Hezbollah rockets, Houthi attacks on ships, IRGC activities, April 2026.
-Return ONLY a JSON array of 6 items: {title,summary,category:"military",urgency,source,timeAgo,location}. No extra text.`,
-
-  diplomatic:`Search the web for today's diplomatic news: Israel-Iran negotiations, US/EU/UN positions on Iran, sanctions, ceasefire talks, JCPOA status, April 2026.
-Return ONLY a JSON array of 6 items: {title,summary,category:"diplomatic",urgency,source,timeAgo,location}. No extra text.`,
-
-  home:`Search the web for today's Israeli home front news: rocket alerts, Iron Dome, civilian impact, city evacuations, Israeli economy during war, April 2026.
-Return ONLY a JSON array of 6 items: {title,summary,category:"home",urgency,source,timeAgo,location}. No extra text.`,
-
-  nuclear:`Search the web for today's Iran nuclear news: enrichment levels, IAEA inspections, nuclear threats, Fordow/Natanz, bunker-buster bombs, April 2026.
-Return ONLY a JSON array of 6 items: {title,summary,category:"nuclear",urgency,source,timeAgo,location}. No extra text.`,
-
-  intel:`Search the web for today's intelligence news: Mossad operations, Iranian spy networks, cyber attacks, covert operations, assassination attempts, April 2026.
-Return ONLY a JSON array of 6 items: {title,summary,category:"intel",urgency,source,timeAgo,location}. No extra text.`,
+  all:       `Search: Israel Iran war news April 2026. Reply ONLY with a JSON array of 5 objects: {title,summary,category,urgency,source,timeAgo,location}. title+summary in Hebrew. category=military|diplomatic|home|nuclear|intel. urgency=high|medium|low. No markdown.`,
+  military:  `Search: IDF Iran strikes today 2026. Reply ONLY JSON array 5 items: {title,summary,category:"military",urgency,source,timeAgo,location}. Hebrew title+summary. No markdown.`,
+  diplomatic:`Search: Israel Iran diplomacy 2026. Reply ONLY JSON array 5 items: {title,summary,category:"diplomatic",urgency,source,timeAgo,location}. Hebrew title+summary. No markdown.`,
+  home:      `Search: Israel rockets home front 2026. Reply ONLY JSON array 5 items: {title,summary,category:"home",urgency,source,timeAgo,location}. Hebrew title+summary. No markdown.`,
+  nuclear:   `Search: Iran nuclear IAEA 2026. Reply ONLY JSON array 5 items: {title,summary,category:"nuclear",urgency,source,timeAgo,location}. Hebrew title+summary. No markdown.`,
+  intel:     `Search: Mossad Iran intelligence 2026. Reply ONLY JSON array 5 items: {title,summary,category:"intel",urgency,source,timeAgo,location}. Hebrew title+summary. No markdown.`,
 };
 
 // ── STATE ──
@@ -328,8 +315,8 @@ async function fetchFromClaude(category) {
       'anthropic-dangerous-direct-browser-access': 'true',
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 2000,
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 800,
       tools: [{ type: 'web_search_20250305', name: 'web_search' }],
       messages: [{ role: 'user', content: prompt }],
     }),
