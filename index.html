@@ -100,12 +100,50 @@
   /* ── API CHANGE ── */
   .api-change-btn{color:#2a3a4a;font-size:10px;background:none;border:none;cursor:pointer;font-family:monospace;text-decoration:underline}
 
+
+  /* ── ROCKET ALERT BANNER ── */
+  #rocketBanner{display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:#e63946;padding:0;animation:slideDown 0.3s ease}
+  @keyframes slideDown{from{transform:translateY(-100%)}to{transform:translateY(0)}}
+  .rocket-banner-inner{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;direction:rtl}
+  .rocket-siren{font-size:22px;animation:blink 0.4s infinite}
+  .rocket-text{flex:1;margin:0 10px;font-family:'Heebo',sans-serif;font-weight:700;font-size:13px;color:#fff;line-height:1.4}
+  .rocket-areas{font-size:11px;font-weight:400;opacity:0.9;display:block;margin-top:2px}
+  .rocket-time{font-size:10px;color:rgba(255,255,255,0.7);font-family:monospace;white-space:nowrap}
+  .rocket-close{background:none;border:none;color:rgba(255,255,255,0.8);font-size:18px;cursor:pointer;padding:0 4px;margin-right:-4px}
+  
+  /* ── ALERT HISTORY ── */
+  .alert-hist-wrap{margin-bottom:14px}
+  .alert-hist-title{color:#e63946;font-size:10px;letter-spacing:2px;margin-bottom:8px;opacity:0.8}
+  .alert-hist-item{background:rgba(230,57,70,0.08);border:1px solid rgba(230,57,70,0.2);border-radius:6px;padding:10px 14px;margin-bottom:6px;direction:rtl;animation:fadeIn 0.3s ease}
+  .alert-hist-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+  .alert-hist-type{color:#e63946;font-size:12px;font-weight:600;font-family:'Heebo',sans-serif}
+  .alert-hist-time{color:#555;font-size:10px;font-family:monospace}
+  .alert-hist-areas{color:#a0aec0;font-size:12px;font-family:'Heebo',sans-serif;line-height:1.5}
+
+  /* ── ALERT TOGGLE ── */
+  .alert-ctrl-btn{background:rgba(230,57,70,0.1);border:1px solid rgba(230,57,70,0.35);color:#e63946;border-radius:5px;padding:6px 12px;font-size:11px;cursor:pointer;font-family:monospace;-webkit-appearance:none}
+  .alert-ctrl-btn.on{background:rgba(230,57,70,0.25);border-color:rgba(230,57,70,0.6)}
+
   /* BG */
   body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 20% 50%,rgba(230,57,70,.05) 0%,transparent 50%),radial-gradient(ellipse at 80% 20%,rgba(76,201,240,.04) 0%,transparent 40%);pointer-events:none;z-index:0}
 </style>
 </head>
 <body>
 <div class="scanline"></div>
+
+<!-- ROCKET ALERT BANNER -->
+<div id="rocketBanner">
+  <div class="rocket-banner-inner">
+    <span class="rocket-siren">🚨</span>
+    <div class="rocket-text">
+      <span id="bannerTitle">אזעקה</span>
+      <span class="rocket-areas" id="bannerAreas"></span>
+    </div>
+    <span class="rocket-time" id="bannerTime"></span>
+    <button class="rocket-close" onclick="closeBanner()">✕</button>
+  </div>
+</div>
+
 
 <!-- API KEY SCREEN -->
 <div id="apiScreen">
@@ -142,11 +180,19 @@
       </div>
     </div>
 
+    <!-- Alert History -->
+    <div id="alertSection" style="display:none">
+      <div class="alert-hist-wrap">
+        <div class="alert-hist-title">🚨 אזעקות אחרונות · פיקוד העורף</div>
+        <div id="alertList"></div>
+      </div>
+    </div>
     <!-- Categories -->
     <div class="cats" id="catsBar"></div>
 
     <!-- Controls -->
     <div class="controls">
+      <button class="alert-ctrl-btn" id="alertBtn" onclick="toggleAlerts()">🚨 אזעקות OFF</button>
       <button class="ctrl-btn" id="autoBtn" onclick="toggleAuto()">⟳ OFF</button>
       <button class="refresh-btn" id="refreshBtn" onclick="loadNews()">↻ רענן</button>
     </div>
@@ -499,6 +545,163 @@ function downloadFile() {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+
+// ══════════════════════════════════════
+// ROCKET ALERT SYSTEM — פיקוד העורף
+// ══════════════════════════════════════
+let alertsEnabled = false;
+let alertTimer = null;
+let lastAlertId = null;
+let alertHistory = [];
+let audioCtx = null;
+
+// CORS proxies to try in order
+const PROXIES = [
+  url => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
+  url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+];
+
+const OREF_ACTIVE  = 'https://www.oref.org.il/warningMessages/alert/alerts.json';
+const OREF_HISTORY = 'https://www.oref.org.il/warningMessages/alert/History/AlertsHistory.json';
+
+function toggleAlerts() {
+  alertsEnabled = !alertsEnabled;
+  const btn = document.getElementById('alertBtn');
+  if (alertsEnabled) {
+    btn.textContent = '🚨 אזעקות ON';
+    btn.classList.add('on');
+    fetchAlertHistory();
+    startAlertPolling();
+  } else {
+    btn.textContent = '🚨 אזעקות OFF';
+    btn.classList.remove('on');
+    stopAlertPolling();
+    document.getElementById('alertSection').style.display = 'none';
+  }
+}
+
+function startAlertPolling() {
+  checkActiveAlert();
+  alertTimer = setInterval(checkActiveAlert, 5000);
+}
+
+function stopAlertPolling() {
+  clearInterval(alertTimer);
+  alertTimer = null;
+}
+
+async function fetchWithProxy(url) {
+  for (const proxyFn of PROXIES) {
+    try {
+      const r = await fetch(proxyFn(url), {signal: AbortSignal.timeout(6000)});
+      if (!r.ok) continue;
+      const j = await r.json();
+      // allorigins wraps in {contents:...}
+      const raw = j.contents !== undefined ? j.contents : (typeof j === 'string' ? j : JSON.stringify(j));
+      return raw;
+    } catch(e) { continue; }
+  }
+  return null;
+}
+
+async function checkActiveAlert() {
+  try {
+    const raw = await fetchWithProxy(OREF_ACTIVE);
+    if (!raw || raw.trim() === '' || raw.trim() === 'null') return;
+    let data;
+    try { data = JSON.parse(raw); } catch { return; }
+    if (!data || !data.id) return;
+    if (data.id === lastAlertId) return;
+    lastAlertId = data.id;
+    showActiveBanner(data);
+    playAlertSound();
+    // Add to history
+    alertHistory.unshift({
+      title: data.title || 'אזעקה',
+      areas: Array.isArray(data.data) ? data.data : [],
+      time: new Date().toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit', second:'2-digit'}),
+      id: data.id,
+    });
+    if (alertHistory.length > 20) alertHistory = alertHistory.slice(0, 20);
+    renderAlertHistory();
+  } catch(e) {}
+}
+
+async function fetchAlertHistory() {
+  try {
+    const raw = await fetchWithProxy(OREF_HISTORY);
+    if (!raw) return;
+    let arr;
+    try { arr = JSON.parse(raw); } catch { return; }
+    if (!Array.isArray(arr)) return;
+    // Take last 10
+    alertHistory = arr.slice(0, 10).map(a => ({
+      title: a.alertHeadline || a.title || 'אזעקה',
+      areas: Array.isArray(a.data) ? a.data : (a.cities ? a.cities.split(',') : []),
+      time: a.alertDate || '',
+      id: a.id || Math.random(),
+    }));
+    renderAlertHistory();
+  } catch(e) {}
+}
+
+function renderAlertHistory() {
+  const sec = document.getElementById('alertSection');
+  const list = document.getElementById('alertList');
+  if (!alertHistory.length) { sec.style.display = 'none'; return; }
+  sec.style.display = 'block';
+  list.innerHTML = alertHistory.map(a => `
+    <div class="alert-hist-item">
+      <div class="alert-hist-header">
+        <span class="alert-hist-type">🚨 ${escHtml(a.title)}</span>
+        <span class="alert-hist-time">${escHtml(String(a.time))}</span>
+      </div>
+      <div class="alert-hist-areas">${a.areas.slice(0,8).map(escHtml).join(' · ')}${a.areas.length>8?' · ועוד...':''}</div>
+    </div>`).join('');
+}
+
+function showActiveBanner(data) {
+  const banner = document.getElementById('rocketBanner');
+  const title = document.getElementById('bannerTitle');
+  const areas = document.getElementById('bannerAreas');
+  const time  = document.getElementById('bannerTime');
+  title.textContent = data.title || '🚨 אזעקה';
+  const areaList = Array.isArray(data.data) ? data.data.slice(0,5).join(' · ') : '';
+  areas.textContent = areaList + (data.data && data.data.length > 5 ? ' ועוד...' : '');
+  time.textContent = new Date().toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit'});
+  banner.style.display = 'block';
+  document.body.style.paddingTop = '52px';
+  // Auto-hide after 30 sec
+  setTimeout(closeBanner, 30000);
+}
+
+function closeBanner() {
+  document.getElementById('rocketBanner').style.display = 'none';
+  document.body.style.paddingTop = '0';
+}
+
+function playAlertSound() {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    // Siren pattern: two tones alternating
+    const times = [0, 0.4, 0.8, 1.2, 1.6];
+    const freqs = [880, 660, 880, 660, 880];
+    times.forEach((t, i) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.frequency.value = freqs[i];
+      osc.type = 'sine';
+      gain.gain.setValueAtTime(0, audioCtx.currentTime + t);
+      gain.gain.linearRampToValueAtTime(0.3, audioCtx.currentTime + t + 0.05);
+      gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + t + 0.35);
+      osc.start(audioCtx.currentTime + t);
+      osc.stop(audioCtx.currentTime + t + 0.4);
+    });
+  } catch(e) {}
+}
+
 </script>
 </body>
 </html>
