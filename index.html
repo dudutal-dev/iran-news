@@ -163,7 +163,10 @@
     <!-- Footer -->
     <div class="footer">
       <span>◈ Claude AI · Web Search · Real-Time</span>
-      <button class="api-change-btn" onclick="changeApiKey()">שנה מפתח API</button>
+      <div style="display:flex;gap:12px;align-items:center">
+        <button class="api-change-btn" onclick="downloadFile()">⬇ הורד index.html</button>
+        <button class="api-change-btn" onclick="changeApiKey()">שנה מפתח API</button>
+      </div>
     </div>
   </div>
 </div>
@@ -303,9 +306,13 @@ async function loadNews() {
   }
 }
 
-async function fetchFromClaude(category) {
-  const prompt = PROMPTS[category] || PROMPTS.all;
-
+async function apiCall(messages, withSearch) {
+  const body = {
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 1500,
+    messages,
+  };
+  if (withSearch) body.tools = [{ type: 'web_search_20250305', name: 'web_search' }];
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -314,45 +321,71 @@ async function fetchFromClaude(category) {
       'anthropic-version': '2023-06-01',
       'anthropic-dangerous-direct-browser-access': 'true',
     },
-    body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 800,
-      tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-      messages: [{ role: 'user', content: prompt }],
-    }),
+    body: JSON.stringify(body),
   });
-
   if (!res.ok) {
     let msg = 'שגיאת שרת: ' + res.status;
     try { const j = await res.json(); msg = j.error?.message || msg; } catch{}
     throw new Error(msg);
   }
-
   const data = await res.json();
-
   if (data.error) throw new Error(data.error.message || 'שגיאת API');
+  return data;
+}
 
-  const blocks = data.content || [];
+async function fetchFromClaude(category) {
+  const queries = {
+    all:        'Israel Iran war breaking news today April 2026',
+    military:   'Israel IDF Iran strikes missiles today April 2026',
+    diplomatic: 'Israel Iran ceasefire diplomacy Trump April 2026',
+    home:       'Israel rockets home front Iron Dome April 2026',
+    nuclear:    'Iran nuclear IAEA program April 2026',
+    intel:      'Israel Mossad Iran intelligence cyber April 2026',
+  };
+  const q = queries[category] || queries.all;
 
-  // Collect all text from text blocks
-  const text = blocks
+  // Turn 1: search
+  const t1 = await apiCall([{ role: 'user', content: 'Search web: ' + q }], true);
+  const assistantContent = t1.content;
+
+  // Turn 2: extract JSON — send full conversation back
+  const jsonInstruction = 'Now output ONLY a raw JSON array (no markdown, no text before or after) of 5 news items from what you found. Each item: {title (Hebrew 6-8 words), summary (Hebrew 2 sentences), category (military|diplomatic|home|nuclear|intel), urgency (high|medium|low), source, timeAgo (Hebrew), location}. Start with [ end with ].';
+
+  const t2 = await apiCall([
+    { role: 'user', content: 'Search web: ' + q },
+    { role: 'assistant', content: assistantContent },
+    { role: 'user', content: jsonInstruction },
+  ], false);
+
+  const rawText = t2.content
     .filter(b => b.type === 'text')
     .map(b => b.text || '')
     .join('\n');
 
-  const parsed = parseJSON(text);
+  const parsed = parseJSON(rawText);
   if (parsed && parsed.length > 0) return parsed;
-
-  throw new Error('לא ניתן לנתח את תשובת ה-AI. נסה שוב.');
+  throw new Error('פרסינג נכשל. קיבלתי: ' + rawText.slice(0, 200));
 }
 
 function parseJSON(raw) {
-  const clean = raw.replace(/```json|```/g, '').trim();
-  // Try full parse
-  try { const a = JSON.parse(clean); if (Array.isArray(a)) return a; } catch{}
-  // Try extracting array
-  const m = clean.match(/\[[\s\S]*\]/);
-  if (m) { try { const a = JSON.parse(m[0]); if (Array.isArray(a)) return a; } catch{} }
+  if (!raw) return null;
+  let s = raw.replace(/```json/gi,'').replace(/```/g,'').trim();
+  // direct
+  try { const a=JSON.parse(s); if(Array.isArray(a)&&a.length) return a; } catch{}
+  // find array
+  const i = s.indexOf('[');
+  const j = s.lastIndexOf(']');
+  if (i>=0 && j>i) {
+    try { const a=JSON.parse(s.slice(i,j+1)); if(Array.isArray(a)&&a.length) return a; } catch{}
+  }
+  // try to fix truncated
+  if (i>=0) {
+    let frag = s.slice(i);
+    let opens = 0;
+    for (const c of frag) { if(c==='{') opens++; else if(c==='}') opens--; }
+    if (opens>0) frag += '}'.repeat(opens) + ']';
+    try { const a=JSON.parse(frag); if(Array.isArray(a)&&a.length) return a; } catch{}
+  }
   return null;
 }
 
@@ -452,6 +485,19 @@ function updateStatus(count) {
 
 function escHtml(str) {
   return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function downloadFile() {
+  const html = document.documentElement.outerHTML;
+  const blob = new Blob([html], {type: 'text/html'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'index.html';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 </script>
 </body>
