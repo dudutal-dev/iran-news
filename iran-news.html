@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>מעקב חדשות: ישראל–איראן | AI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:#060a12;min-height:100vh;font-family:'Share Tech Mono',monospace;color:#e8eaf0;-webkit-text-size-adjust:100%}
+  ::-webkit-scrollbar{width:4px}
+  ::-webkit-scrollbar-track{background:#0a0f1a}
+  ::-webkit-scrollbar-thumb{background:#e63946;border-radius:2px}
+
+  @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:0.2}}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(230,57,70,0.4)}70%{box-shadow:0 0 0 8px rgba(230,57,70,0)}}
+  @keyframes scanline{0%{top:-2px}100%{top:100vh}}
+
+  /* ── LAYOUT ── */
+  .app{max-width:740px;margin:0 auto;padding:0 14px 50px;position:relative;z-index:1}
+  .scanline{position:fixed;left:0;right:0;height:2px;background:linear-gradient(transparent,rgba(230,57,70,.04),transparent);animation:scanline 10s linear infinite;pointer-events:none;z-index:0}
+
+  /* ── API KEY SCREEN ── */
+  #apiScreen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:24px;text-align:center}
+  .api-logo{font-size:40px;margin-bottom:20px;animation:blink 3s infinite}
+  .api-title{font-family:'Heebo',sans-serif;font-size:22px;font-weight:700;color:#f0f4ff;margin-bottom:8px}
+  .api-sub{color:#4cc9f0;font-size:12px;margin-bottom:28px;line-height:1.6}
+  .api-input-wrap{width:100%;max-width:420px;margin-bottom:12px}
+  .api-input{width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(76,201,240,0.3);border-radius:8px;padding:14px 16px;color:#e8eaf0;font-family:'Share Tech Mono',monospace;font-size:13px;outline:none;-webkit-appearance:none;direction:ltr;text-align:left}
+  .api-input:focus{border-color:#4cc9f0;background:rgba(76,201,240,0.05)}
+  .api-btn{width:100%;max-width:420px;background:rgba(230,57,70,0.15);border:1px solid rgba(230,57,70,0.5);color:#e63946;border-radius:8px;padding:14px;font-family:'Heebo',sans-serif;font-size:15px;font-weight:600;cursor:pointer;transition:all 0.2s;-webkit-appearance:none}
+  .api-btn:hover{background:rgba(230,57,70,0.25)}
+  .api-note{color:#333;font-size:11px;margin-top:16px;line-height:1.7;max-width:400px}
+  .api-note a{color:#4cc9f0;text-decoration:none}
+
+  /* ── MAIN HEADER ── */
+  .header{border-bottom:1px solid rgba(230,57,70,0.2);padding:22px 0 16px;margin-bottom:18px}
+  .header-inner{display:flex;justify-content:space-between;align-items:flex-start}
+  .header-badge{color:#e63946;font-size:9px;letter-spacing:3px;margin-bottom:5px;opacity:0.8}
+  .header-title{font-family:'Heebo',sans-serif;font-size:21px;font-weight:700;color:#f0f4ff;letter-spacing:0.5px}
+  .header-sub{color:#4cc9f0;font-size:11px;margin-top:4px;opacity:0.7}
+  .header-clock{text-align:left}
+  .clock-time{color:#e63946;font-size:20px;letter-spacing:2px;font-family:'Share Tech Mono',monospace}
+  .clock-date{color:#3a4a5a;font-size:10px;margin-top:2px}
+  .alert-badge{margin-top:7px;background:rgba(230,57,70,0.15);border:1px solid rgba(230,57,70,0.4);border-radius:4px;padding:3px 9px;color:#e63946;font-size:10px;animation:blink 2s infinite;display:inline-block}
+
+  /* ── CATEGORIES ── */
+  .cats{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+  .cat-btn{background:transparent;border:1px solid rgba(255,255,255,0.1);color:#666;border-radius:5px;padding:6px 12px;font-size:11px;cursor:pointer;font-family:'Heebo',sans-serif;transition:all 0.2s;-webkit-appearance:none;white-space:nowrap}
+  .cat-btn.active{border-color:var(--cc);color:var(--cc);background:rgba(var(--cr),0.12)}
+
+  /* ── CONTROLS ── */
+  .controls{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-bottom:10px}
+  .ctrl-btn{background:transparent;border:1px solid rgba(255,255,255,0.1);color:#555;border-radius:5px;padding:6px 12px;font-size:11px;cursor:pointer;font-family:monospace;transition:all 0.2s;-webkit-appearance:none}
+  .ctrl-btn.on{background:rgba(76,201,240,0.12);border-color:#4cc9f077;color:#4cc9f0}
+  .refresh-btn{background:rgba(230,57,70,0.1);border:1px solid rgba(230,57,70,0.4);color:#e63946;border-radius:5px;padding:6px 14px;font-size:11px;cursor:pointer;font-family:monospace;display:flex;align-items:center;gap:5px;-webkit-appearance:none}
+  .refresh-btn:disabled{opacity:0.4;cursor:not-allowed}
+  .spin{animation:spin 1s linear infinite;display:inline-block}
+
+  /* ── STATUS ── */
+  .status-bar{display:flex;justify-content:space-between;color:#2a3a4a;font-size:10px;margin-bottom:14px}
+
+  /* ── NEWS CARDS ── */
+  .news-list{display:flex;flex-direction:column;gap:10px}
+  .card{background:rgba(10,15,25,0.9);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:14px 16px;cursor:pointer;transition:border-color 0.25s,background 0.25s;animation:fadeIn 0.4s ease both;position:relative;overflow:hidden}
+  .card:active{background:rgba(15,22,38,0.95)}
+  .card.urgent{border-color:rgba(230,57,70,0.18)}
+  .card-top-line{position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#e63946,transparent)}
+  .card-meta{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:7px}
+  .urgency-tag{border-radius:4px;padding:2px 7px;font-size:10px;font-family:monospace;letter-spacing:0.5px;display:inline-flex;align-items:center;gap:4px}
+  .urgency-dot{width:6px;height:6px;border-radius:50%;display:inline-block;animation:blink 1s infinite}
+  .cat-tag{font-size:11px;font-family:monospace;opacity:0.9}
+  .loc-tag{color:#555;font-size:11px;font-family:monospace}
+  .card-title{color:#e8eaf0;font-size:14px;font-weight:600;line-height:1.5;font-family:'Heebo',sans-serif;text-align:right}
+  .card-chevron{color:#3a4a5a;font-size:15px;flex-shrink:0;margin-top:2px}
+  .card-header{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+  .card-body{border-top:1px solid rgba(255,255,255,0.05);margin-top:10px;padding-top:10px}
+  .card-summary{color:#8a9ab0;font-size:13px;line-height:1.7;font-family:'Heebo',sans-serif;text-align:right;margin-bottom:9px}
+  .card-footer{display:flex;gap:12px;justify-content:flex-end}
+  .meta-info{color:#3a4a5a;font-size:10px;font-family:monospace}
+
+  /* ── LOADING ── */
+  .loading-wrap{text-align:center;padding:60px 20px}
+  .loading-icon{color:#e63946;font-size:30px;animation:spin 2s linear infinite;display:inline-block;margin-bottom:16px}
+  .loading-text{color:#4cc9f0;font-size:13px;margin-bottom:7px;font-family:'Heebo',sans-serif}
+  .loading-sub{color:#2a3a4a;font-size:11px;font-family:'Heebo',sans-serif}
+
+  /* ── ERROR ── */
+  .error-wrap{background:rgba(230,57,70,0.08);border:1px solid rgba(230,57,70,0.25);border-radius:8px;padding:24px;text-align:center;color:#e63946;font-family:'Heebo',sans-serif;font-size:13px;line-height:1.7}
+  .error-icon{font-size:26px;margin-bottom:10px}
+  .error-detail{color:#8a2a30;font-size:11px;margin-top:8px;font-family:monospace;word-break:break-all}
+
+  /* ── FOOTER ── */
+  .footer{margin-top:28px;border-top:1px solid rgba(255,255,255,0.04);padding-top:13px;display:flex;justify-content:space-between}
+  .footer span{color:#1e2a3a;font-size:10px}
+
+  /* ── API CHANGE ── */
+  .api-change-btn{color:#2a3a4a;font-size:10px;background:none;border:none;cursor:pointer;font-family:monospace;text-decoration:underline}
+
+  /* BG */
+  body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 20% 50%,rgba(230,57,70,.05) 0%,transparent 50%),radial-gradient(ellipse at 80% 20%,rgba(76,201,240,.04) 0%,transparent 40%);pointer-events:none;z-index:0}
+</style>
+</head>
+<body>
+<div class="scanline"></div>
+
+<!-- API KEY SCREEN -->
+<div id="apiScreen">
+  <div class="api-logo">◈</div>
+  <div class="api-title">מעקב חדשות: ישראל–איראן</div>
+  <div class="api-sub">הכנס מפתח Anthropic API שלך<br>לחיפוש חדשות בזמן אמת עם AI</div>
+  <div class="api-input-wrap">
+    <input class="api-input" id="apiKeyInput" type="password"
+      placeholder="sk-ant-api03-..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+  </div>
+  <button class="api-btn" onclick="startApp()">התחל ◈</button>
+  <div class="api-note">
+    המפתח נשמר רק בדפדפן שלך (localStorage) ואינו נשלח לשום שרת.<br>
+    להשגת מפתח: <a href="https://console.anthropic.com/keys" target="_blank">console.anthropic.com/keys</a>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="mainApp" style="display:none">
+  <div class="app">
+    <!-- Header -->
+    <div class="header">
+      <div class="header-inner">
+        <div>
+          <div class="header-badge">◈ LIVE INTELLIGENCE FEED ◈</div>
+          <div class="header-title">מעקב חדשות: ישראל–איראן</div>
+          <div class="header-sub">מבוסס בינה מלאכותית · חיפוש בזמן אמת</div>
+        </div>
+        <div class="header-clock">
+          <div class="clock-time" id="clockTime">--:--:--</div>
+          <div class="clock-date" id="clockDate"></div>
+          <div id="alertBadge" class="alert-badge" style="display:none"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Categories -->
+    <div class="cats" id="catsBar"></div>
+
+    <!-- Controls -->
+    <div class="controls">
+      <button class="ctrl-btn" id="autoBtn" onclick="toggleAuto()">⟳ OFF</button>
+      <button class="refresh-btn" id="refreshBtn" onclick="loadNews()">↻ רענן</button>
+    </div>
+
+    <!-- Status -->
+    <div class="status-bar" id="statusBar" style="display:none">
+      <span id="statusLeft"></span>
+      <span id="statusRight"></span>
+    </div>
+
+    <!-- Content -->
+    <div id="content"></div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <span>◈ Claude AI · Web Search · Real-Time</span>
+      <button class="api-change-btn" onclick="changeApiKey()">שנה מפתח API</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const CATEGORIES = [
+  {id:"all",   label:"הכל",    icon:"◈", color:"#e63946", r:"230,57,70"},
+  {id:"military",label:"מבצעי",icon:"⚔", color:"#ff6b35", r:"255,107,53"},
+  {id:"diplomatic",label:"מדיני",icon:"◎",color:"#4cc9f0",r:"76,201,240"},
+  {id:"home",  label:"עורף",   icon:"⌂", color:"#f8961e", r:"248,150,30"},
+  {id:"nuclear",label:"גרעין", icon:"☢", color:"#b5e48c", r:"181,228,140"},
+  {id:"intel", label:"מודיעין",icon:"◉", color:"#c77dff", r:"199,125,255"},
+];
+
+const CAT_MAP = {};
+CATEGORIES.forEach(c => CAT_MAP[c.id] = c);
+
+const URGENCY = {
+  high:   {color:"#e63946", label:"דחוף", pulse:true},
+  medium: {color:"#f8961e", label:"חשוב", pulse:false},
+  low:    {color:"#4cc9f0", label:"רגיל", pulse:false},
+};
+
+const PROMPTS = {
+  all:`Search the web right now for the latest breaking news about the Israel-Iran conflict, Iranian missile attacks, Israeli airstrikes on Iran, Hezbollah activity, Houthi attacks, Hamas, and any related Middle East military developments happening today April 2026.
+Return ONLY a valid JSON array of exactly 6 news items. Each item:
+{"title":"Hebrew headline max 10 words","summary":"Hebrew 2-3 sentence factual summary","category":"military|diplomatic|home|nuclear|intel","urgency":"high|medium|low","source":"source name","timeAgo":"לפני X שעות","location":"city/region"}
+Return ONLY the JSON array with no extra text, no markdown, no backticks.`,
+
+  military:`Search the web for today's latest military news: IDF operations against Iran, Israeli airstrikes, Iranian missile/drone attacks, Hezbollah rockets, Houthi attacks on ships, IRGC activities, April 2026.
+Return ONLY a JSON array of 6 items: {title,summary,category:"military",urgency,source,timeAgo,location}. No extra text.`,
+
+  diplomatic:`Search the web for today's diplomatic news: Israel-Iran negotiations, US/EU/UN positions on Iran, sanctions, ceasefire talks, JCPOA status, April 2026.
+Return ONLY a JSON array of 6 items: {title,summary,category:"diplomatic",urgency,source,timeAgo,location}. No extra text.`,
+
+  home:`Search the web for today's Israeli home front news: rocket alerts, Iron Dome, civilian impact, city evacuations, Israeli economy during war, April 2026.
+Return ONLY a JSON array of 6 items: {title,summary,category:"home",urgency,source,timeAgo,location}. No extra text.`,
+
+  nuclear:`Search the web for today's Iran nuclear news: enrichment levels, IAEA inspections, nuclear threats, Fordow/Natanz, bunker-buster bombs, April 2026.
+Return ONLY a JSON array of 6 items: {title,summary,category:"nuclear",urgency,source,timeAgo,location}. No extra text.`,
+
+  intel:`Search the web for today's intelligence news: Mossad operations, Iranian spy networks, cyber attacks, covert operations, assassination attempts, April 2026.
+Return ONLY a JSON array of 6 items: {title,summary,category:"intel",urgency,source,timeAgo,location}. No extra text.`,
+};
+
+// ── STATE ──
+let API_KEY = '';
+let activeCategory = 'all';
+let autoRefresh = false;
+let autoTimer = null;
+let newsData = [];
+let loading = false;
+let expandedCards = new Set();
+
+// ── INIT ──
+window.addEventListener('DOMContentLoaded', () => {
+  const saved = localStorage.getItem('iran_news_api_key');
+  if (saved) { API_KEY = saved; showMain(); }
+  startClock();
+});
+
+function startClock() {
+  function update() {
+    const now = new Date();
+    const t = document.getElementById('clockTime');
+    const d = document.getElementById('clockDate');
+    if (t) t.textContent = now.toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    if (d) d.textContent = now.toLocaleDateString('he-IL');
+  }
+  update();
+  setInterval(update, 1000);
+}
+
+function startApp() {
+  const key = document.getElementById('apiKeyInput').value.trim();
+  if (!key || !key.startsWith('sk-')) {
+    alert('מפתח API לא תקין. חייב להתחיל ב-sk-');
+    return;
+  }
+  API_KEY = key;
+  localStorage.setItem('iran_news_api_key', key);
+  showMain();
+}
+
+function changeApiKey() {
+  localStorage.removeItem('iran_news_api_key');
+  document.getElementById('mainApp').style.display = 'none';
+  document.getElementById('apiScreen').style.display = 'flex';
+  document.getElementById('apiKeyInput').value = '';
+}
+
+function showMain() {
+  document.getElementById('apiScreen').style.display = 'none';
+  document.getElementById('mainApp').style.display = 'block';
+  buildCats();
+  loadNews();
+}
+
+function buildCats() {
+  const bar = document.getElementById('catsBar');
+  bar.innerHTML = CATEGORIES.map(c => `
+    <button class="cat-btn ${c.id===activeCategory?'active':''}"
+      style="--cc:${c.color};--cr:${c.r}"
+      onclick="selectCat('${c.id}')">
+      ${c.icon} ${c.label}
+    </button>`).join('');
+}
+
+function selectCat(id) {
+  activeCategory = id;
+  expandedCards.clear();
+  buildCats();
+  loadNews();
+}
+
+function toggleAuto() {
+  autoRefresh = !autoRefresh;
+  const btn = document.getElementById('autoBtn');
+  if (autoRefresh) {
+    btn.textContent = '⟳ ON';
+    btn.classList.add('on');
+    autoTimer = setInterval(loadNews, 120000);
+  } else {
+    btn.textContent = '⟳ OFF';
+    btn.classList.remove('on');
+    clearInterval(autoTimer);
+  }
+}
+
+// ── FETCH ──
+async function loadNews() {
+  if (loading) return;
+  loading = true;
+
+  const btn = document.getElementById('refreshBtn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin">◈</span> טוען'; }
+
+  renderLoading();
+
+  try {
+    const items = await fetchFromClaude(activeCategory);
+    newsData = items;
+    renderNews(items);
+    updateStatus(items.length);
+  } catch(err) {
+    renderError(err.message);
+  } finally {
+    loading = false;
+    if (btn) { btn.disabled = false; btn.innerHTML = '↻ רענן'; }
+  }
+}
+
+async function fetchFromClaude(category) {
+  const prompt = PROMPTS[category] || PROMPTS.all;
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': API_KEY,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 2000,
+      tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+      messages: [{ role: 'user', content: prompt }],
+    }),
+  });
+
+  if (!res.ok) {
+    let msg = 'שגיאת שרת: ' + res.status;
+    try { const j = await res.json(); msg = j.error?.message || msg; } catch{}
+    throw new Error(msg);
+  }
+
+  const data = await res.json();
+
+  if (data.error) throw new Error(data.error.message || 'שגיאת API');
+
+  const blocks = data.content || [];
+
+  // Collect all text from text blocks
+  const text = blocks
+    .filter(b => b.type === 'text')
+    .map(b => b.text || '')
+    .join('\n');
+
+  const parsed = parseJSON(text);
+  if (parsed && parsed.length > 0) return parsed;
+
+  throw new Error('לא ניתן לנתח את תשובת ה-AI. נסה שוב.');
+}
+
+function parseJSON(raw) {
+  const clean = raw.replace(/```json|```/g, '').trim();
+  // Try full parse
+  try { const a = JSON.parse(clean); if (Array.isArray(a)) return a; } catch{}
+  // Try extracting array
+  const m = clean.match(/\[[\s\S]*\]/);
+  if (m) { try { const a = JSON.parse(m[0]); if (Array.isArray(a)) return a; } catch{} }
+  return null;
+}
+
+// ── RENDER ──
+function renderLoading() {
+  document.getElementById('content').innerHTML = `
+    <div class="loading-wrap">
+      <div class="loading-icon">◈</div>
+      <div class="loading-text">Claude AI מחפש חדשות בזמן אמת...</div>
+      <div class="loading-sub">סורק מקורות עדכניים ברשת</div>
+    </div>`;
+  document.getElementById('statusBar').style.display = 'none';
+}
+
+function renderError(msg) {
+  document.getElementById('content').innerHTML = `
+    <div class="error-wrap">
+      <div class="error-icon">⚠</div>
+      <div>שגיאה בטעינת החדשות</div>
+      <div class="error-detail">${escHtml(msg)}</div>
+    </div>`;
+}
+
+function renderNews(items) {
+  const cont = document.getElementById('content');
+  if (!items || items.length === 0) {
+    cont.innerHTML = '<div class="error-wrap"><div class="error-icon">◎</div><div>לא נמצאו חדשות</div></div>';
+    return;
+  }
+
+  // Update alert badge
+  const highCount = items.filter(n => n.urgency === 'high').length;
+  const badge = document.getElementById('alertBadge');
+  if (highCount > 0) {
+    badge.style.display = 'inline-block';
+    badge.textContent = '⚠ ' + highCount + ' עדכונים דחופים';
+  } else {
+    badge.style.display = 'none';
+  }
+
+  cont.innerHTML = '<div class="news-list">' +
+    items.map((item, i) => cardHTML(item, i)).join('') +
+  '</div>';
+}
+
+function cardHTML(item, i) {
+  const urg = URGENCY[item.urgency] || URGENCY.medium;
+  const cat = CAT_MAP[item.category] || CAT_MAP.all;
+  const expanded = expandedCards.has(i);
+  const delay = (i * 80) + 'ms';
+
+  return `<div class="card ${item.urgency==='high'?'urgent':''}" 
+    style="animation-delay:${delay}" 
+    onclick="toggleCard(${i})" id="card-${i}">
+    ${item.urgency==='high' ? '<div class="card-top-line"></div>' : ''}
+    <div class="card-header">
+      <div style="flex:1">
+        <div class="card-meta">
+          <span class="urgency-tag" style="background:${urg.color}22;color:${urg.color};border:1px solid ${urg.color}44">
+            ${urg.pulse ? `<span class="urgency-dot" style="background:${urg.color}"></span>` : ''}
+            ${escHtml(urg.label)}
+          </span>
+          <span class="cat-tag" style="color:${cat.color}">${cat.icon} ${escHtml(item.category||'')}</span>
+          ${item.location ? `<span class="loc-tag">📍 ${escHtml(item.location)}</span>` : ''}
+        </div>
+        <div class="card-title">${escHtml(item.title||'')}</div>
+      </div>
+      <div class="card-chevron">${expanded ? '▲' : '▼'}</div>
+    </div>
+    ${expanded ? `
+    <div class="card-body">
+      <div class="card-summary">${escHtml(item.summary||'')}</div>
+      <div class="card-footer">
+        ${item.timeAgo ? `<span class="meta-info">🕐 ${escHtml(item.timeAgo)}</span>` : ''}
+        ${item.source ? `<span class="meta-info">📰 ${escHtml(item.source)}</span>` : ''}
+      </div>
+    </div>` : ''}
+  </div>`;
+}
+
+function toggleCard(i) {
+  if (expandedCards.has(i)) expandedCards.delete(i);
+  else expandedCards.add(i);
+  renderNews(newsData);
+}
+
+function updateStatus(count) {
+  const bar = document.getElementById('statusBar');
+  const l = document.getElementById('statusLeft');
+  const r = document.getElementById('statusRight');
+  const now = new Date();
+  const time = now.toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'});
+  l.textContent = 'עודכן: ' + time;
+  r.textContent = count + ' פריטים' + (autoRefresh ? ' · ⟳ עדכון אוטומטי' : '');
+  bar.style.display = 'flex';
+}
+
+function escHtml(str) {
+  return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>
